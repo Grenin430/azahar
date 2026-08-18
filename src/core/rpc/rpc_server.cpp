@@ -45,7 +45,7 @@ void RPCServer::HandleReadMemory(Packet& packet, u32 address, u32 data_size) {
 
 void RPCServer::HandleWriteMemory(Packet& packet, u32 address, std::span<const u8> data) {
     // Only allow writing to certain memory regions
-        if ((address >= Memory::PROCESS_IMAGE_VADDR && address <= Memory::PROCESS_IMAGE_VADDR_END) ||
+            if ((address >= Memory::PROCESS_IMAGE_VADDR && address <= Memory::PROCESS_IMAGE_VADDR_END) ||
         (address >= Memory::HEAP_VADDR && address <= Memory::HEAP_VADDR_END) ||
         (address >= Memory::LINEAR_HEAP_VADDR && address <= Memory::LINEAR_HEAP_VADDR_END) ||
         (address >= Memory::NEW_LINEAR_HEAP_VADDR &&
