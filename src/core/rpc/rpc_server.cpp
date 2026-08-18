@@ -48,6 +48,7 @@ void RPCServer::HandleWriteMemory(Packet& packet, u32 address, std::span<const u
     if ((address >= Memory::PROCESS_IMAGE_VADDR && address <= Memory::PROCESS_IMAGE_VADDR_END) ||
         (address >= Memory::HEAP_VADDR && address <= Memory::HEAP_VADDR_END) ||
         (address >= Memory::LINEAR_HEAP_VADDR && address <= Memory::LINEAR_HEAP_VADDR_END) ||
+        (address >= Memory::N3DS_EXTRA_RAM_VADDR && address <= Memory::N3DS_EXTRA_RAM_VADDR_END)) 
         (address >= Memory::N3DS_EXTRA_RAM_VADDR && address <= Memory::N3DS_EXTRA_RAM_VADDR_END)) {
         // Note: Memory write occurs asynchronously from the state of the emulator
         if (selected_pid == 0xFFFFFFFF) {
