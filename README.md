@@ -37,7 +37,7 @@ Alternatively, if you wish to download a build specifically for your Mac, you ca
 
 ---
 
-### Android
+ ### Android
 
 There are two variants of Azahar available on Android, those being the Vanilla and Google Play builds.
 
