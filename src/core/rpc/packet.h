@@ -17,6 +17,7 @@ enum class PacketType : u32 {
     WriteMemory = 2,
     ProcessList = 3,
     SetGetProcess = 4,
+    SearchMemory = 5,
 };
 
 struct PacketHeader {
@@ -41,6 +42,7 @@ constexpr u32 MAX_PACKET_DATA_SIZE = 1024;
 constexpr u32 MAX_PACKET_SIZE = MIN_PACKET_SIZE + MAX_PACKET_DATA_SIZE;
 constexpr u32 MAX_READ_SIZE = MAX_PACKET_DATA_SIZE;
 constexpr u32 MAX_PROCESSES_IN_LIST = (MAX_PACKET_DATA_SIZE - sizeof(u32)) / sizeof(ProcessInfo);
+constexpr u32 MAX_SEARCH_HITS = (MAX_PACKET_DATA_SIZE - sizeof(u32)) / sizeof(u32);
 
 class Packet {
 public:
