@@ -124,6 +124,7 @@ bool RPCServer::ValidatePacket(const PacketHeader& packet_header) {
         case PacketType::WriteMemory:
         case PacketType::ProcessList:
         case PacketType::SetGetProcess:
+        case PacketType::SearchMemory:
             if (packet_header.packet_size >= (sizeof(u32) * 2)) {
                 return true;
             }
@@ -167,6 +168,12 @@ void RPCServer::HandleSingleRequest(std::unique_ptr<Packet> request_packet) {
         case PacketType::SetGetProcess:
             HandleSetGetProcess(*request_packet, arg1, arg2);
             success = true;
+            break;
+        case PacketType::SearchMemory:
+            if (arg2 > 0) {
+                HandleSearchMemory(*request_packet, arg1, arg2);
+                success = true;
+            }
             break;
         default:
             break;
