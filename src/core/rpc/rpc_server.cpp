@@ -2,6 +2,9 @@
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
+#include <algorithm>
+#include <array>
+#include <vector>
 #include "common/logging/log.h"
 #include "core/core.h"
 #include "core/hle/kernel/process.h"
@@ -45,7 +48,7 @@ void RPCServer::HandleReadMemory(Packet& packet, u32 address, u32 data_size) {
 
 void RPCServer::HandleWriteMemory(Packet& packet, u32 address, std::span<const u8> data) {
     // Only allow writing to certain memory regions
-               if ((address >= Memory::PROCESS_IMAGE_VADDR && address <= Memory::PROCESS_IMAGE_VADDR_END) ||
+    if ((address >= Memory::PROCESS_IMAGE_VADDR && address <= Memory::PROCESS_IMAGE_VADDR_END) ||
         (address >= Memory::HEAP_VADDR && address <= Memory::HEAP_VADDR_END) ||
         (address >= Memory::LINEAR_HEAP_VADDR && address <= Memory::LINEAR_HEAP_VADDR_END) ||
         (address >= Memory::NEW_LINEAR_HEAP_VADDR &&
@@ -115,6 +118,82 @@ void RPCServer::HandleSetGetProcess(Packet& packet, u32 operation, u32 process_i
 
     packet.SetPacketDataSize(written_bytes);
     packet.SendReply();
+}
+
+void RPCServer::HandleSearchMemory(Packet& packet, u32 address, u32 region_size) {
+    const auto request = packet.GetPacketData();
+
+    u32 stride = 0;
+    u32 pattern_size = 0;
+    std::memcpy(&stride, request.data() + (sizeof(u32) * 2), sizeof(stride));
+    std::memcpy(&pattern_size, request.data() + (sizeof(u32) * 3), sizeof(pattern_size));
+
+    constexpr u32 MAX_PATTERN_SIZE = 64;
+    if (stride == 0 || pattern_size == 0 || pattern_size > MAX_PATTERN_SIZE ||
+        (sizeof(u32) * 4) + (pattern_size * 2) > MAX_PACKET_DATA_SIZE) {
+        packet.SetPacketDataSize(0);
+        packet.SendReply();
+        return;
+    }
+
+    std::array<u8, MAX_PATTERN_SIZE> pattern{};
+    std::array<u8, MAX_PATTERN_SIZE> mask{};
+    std::memcpy(pattern.data(), request.data() + (sizeof(u32) * 4), pattern_size);
+    std::memcpy(mask.data(), request.data() + (sizeof(u32) * 4) + pattern_size, pattern_size);
+
+    // Read in overlapping chunks, so a match split across two chunks is not lost.
+    constexpr u32 CHUNK = 0x10000;
+    std::vector<u8> chunk(CHUNK + MAX_PATTERN_SIZE);
+    std::vector<u32> hits;
+
+    Kernel::Process* process = nullptr;
+    if (selected_pid != 0xFFFFFFFF) {
+        auto found = system.Kernel().GetProcessById(selected_pid);
+        if (!found) {
+            LOG_ERROR(RPC_Server, "Selected process does not exist.");
+            packet.SetPacketDataSize(0);
+            packet.SendReply();
+            return;
+        }
+        process = found.get();
+    } else {
+        LOG_ERROR(RPC_Server, "No target process selected, memory access may be invalid.");
+    }
+
+    for (u32 offset = 0; offset < region_size && hits.size() < MAX_SEARCH_HITS; offset += CHUNK) {
+        const u32 to_read = std::min(CHUNK + pattern_size - 1, region_size - offset);
+
+        if (process != nullptr) {
+            system.Memory().ReadBlock(*process, address + offset, chunk.data(), to_read);
+        } else {
+            system.Memory().ReadBlock(address + offset, chunk.data(), to_read);
+        }
+
+        for (u32 i = 0; i + pattern_size <= to_read; i += stride) {
+            bool match = true;
+            for (u32 b = 0; b < pattern_size; ++b) {
+                if ((chunk[i + b] & mask[b]) != (pattern[b] & mask[b])) {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) {
+                hits.push_back(address + offset + i);
+                if (hits.size() >= MAX_SEARCH_HITS) {
+                    break;
+                }
+            }
+        }
+    }
+
+    const u32 count = static_cast<u32>(hits.size());
+    std::memcpy(packet.GetPacketData().data(), &count, sizeof(count));
+    std::memcpy(packet.GetPacketData().data() + sizeof(count), hits.data(), count * sizeof(u32));
+
+    packet.SetPacketDataSize(sizeof(count) + (count * sizeof(u32)));
+    packet.SendReply();
+
+    LOG_INFO(RPC_Server, "SearchMemory 0x{:08X}+0x{:X}: {} hits", address, region_size, count);
 }
 
 bool RPCServer::ValidatePacket(const PacketHeader& packet_header) {
